@@ -2,12 +2,12 @@
 
 import math
 
-import fitz
+import pymupdf
 
 from .models import PDFExtractionError
 
 
-def render_region(page: fitz.Page, rect: fitz.Rect) -> bytes:
+def render_region(page: pymupdf.Page, rect: pymupdf.Rect) -> bytes:
     """Render a selection in page orientation, without annotation overlays.
 
     Annotation coordinates are unrotated; pixmap clips use rotated page space.
@@ -20,15 +20,15 @@ def render_region(page: fitz.Page, rect: fitz.Rect) -> bytes:
         raise ValueError("Image selection is outside the page")
     zoom = min(3.0, 2000 / max(clip.width, clip.height))
     return page.get_pixmap(
-        matrix=fitz.Matrix(zoom, zoom), clip=clip,
-        colorspace=fitz.csRGB, alpha=False, annots=False,
+        matrix=pymupdf.Matrix(zoom, zoom), clip=clip,
+        colorspace=pymupdf.csRGB, alpha=False, annots=False,
     ).tobytes("png")
 
 
 def render_page(data: bytes, page: int, password: str = "") -> bytes:
     """Return a bounded PNG with the original PDF annotations visible."""
     try:
-        with fitz.open(stream=data, filetype="pdf") as document:
+        with pymupdf.open(stream=data, filetype="pdf") as document:
             if document.needs_pass and not document.authenticate(password):
                 raise PDFExtractionError("Sayfa önizlemesi için doğru PDF parolası gerekli.")
             if not 1 <= page <= document.page_count:
@@ -36,7 +36,7 @@ def render_page(data: bytes, page: int, password: str = "") -> bytes:
             pdf_page = document[page - 1]
             longest = max(pdf_page.rect.width, pdf_page.rect.height)
             zoom = min(1.7, 1600 / max(longest, 1))
-            return pdf_page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), alpha=False, annots=True).tobytes("png")
+            return pdf_page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False, annots=True).tobytes("png")
     except PDFExtractionError:
         raise
     except Exception as error:

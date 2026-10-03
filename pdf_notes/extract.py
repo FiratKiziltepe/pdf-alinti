@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import fitz
+import pymupdf
 
 from .models import AnnotationRecord, ExtractionResult, PDFExtractionError
 from .preview import render_region
@@ -59,7 +59,7 @@ class _Line:
 
 @dataclass
 class _Block:
-    rect: fitz.Rect
+    rect: pymupdf.Rect
     text: str
 
 
@@ -71,18 +71,18 @@ class _PageText:
 
 @dataclass
 class _ContextGroup:
-    rect: fitz.Rect
+    rect: pymupdf.Rect
     direction: tuple[float, float]
     lines: list[list[_Character]]
 
 
-def _along_interval(rect: fitz.Rect, direction: tuple[float, float]) -> tuple[float, float]:
+def _along_interval(rect: pymupdf.Rect, direction: tuple[float, float]) -> tuple[float, float]:
     projections = [point.x * direction[0] + point.y * direction[1]
                    for point in (rect.tl, rect.tr, rect.bl, rect.br)]
     return min(projections), max(projections)
 
 
-def _page_text(page: fitz.Page) -> _PageText:
+def _page_text(page: pymupdf.Page) -> _PageText:
     lines: list[_Line] = []
     blocks: list[_Block] = []
     # MuPDF page text can include FreeText annotation appearances. A display
@@ -92,9 +92,9 @@ def _page_text(page: fitz.Page) -> _PageText:
     if rotation:
         page.set_rotation(0)
     try:
-        text_page = page.get_displaylist(annots=False).get_textpage(fitz.TEXTFLAGS_RAWDICT & ~fitz.TEXT_PRESERVE_IMAGES)
+        text_page = page.get_displaylist(annots=False).get_textpage(pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_PRESERVE_IMAGES)
         if not hasattr(text_page, "extractRAWDICT"):
-            text_page = fitz.TextPage(text_page)
+            text_page = pymupdf.TextPage(text_page)
         raw = text_page.extractRAWDICT()
     finally:
         if rotation:
@@ -107,11 +107,11 @@ def _page_text(page: fitz.Page) -> _PageText:
             chars: list[_Character] = []
             for span in line.get("spans", []):
                 for char in span.get("chars", []):
-                    rect = fitz.Rect(char["bbox"])
+                    rect = pymupdf.Rect(char["bbox"])
                     chars.append(_Character(char["c"], ((rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2)))
             if not chars:
                 continue
-            line_rect = fitz.Rect(line["bbox"])
+            line_rect = pymupdf.Rect(line["bbox"])
             direction = tuple(line.get("dir", (1.0, 0.0)))
             start, end = _along_interval(line_rect, direction)
             matching_groups = []
@@ -154,7 +154,7 @@ def _inside_polygon(point: tuple[float, float], polygon: list[tuple[float, float
     return bool(signs) and (all(signs) or not any(signs))
 
 
-def _marked_text(annot: fitz.Annot, page_text: _PageText) -> tuple[str, str]:
+def _marked_text(annot: pymupdf.Annot, page_text: _PageText) -> tuple[str, str]:
     vertices = annot.vertices or []
     polygons = []
     for index in range(0, len(vertices) - 3, 4):
@@ -200,7 +200,7 @@ def _marked_text(annot: fitz.Annot, page_text: _PageText) -> tuple[str, str]:
     return "\n".join(selected_lines), context
 
 
-def _nearby_context(rect: fitz.Rect, page_text: _PageText, page: fitz.Page) -> str:
+def _nearby_context(rect: pymupdf.Rect, page_text: _PageText, page: pymupdf.Page) -> str:
     """Return the closest text block, with a distance limit for isolated notes."""
     center_x, center_y = (rect.x0 + rect.x1) / 2, (rect.y0 + rect.y1) / 2
     candidates = []
@@ -225,7 +225,7 @@ def _nearby_context(rect: fitz.Rect, page_text: _PageText, page: fitz.Page) -> s
     return block.text
 
 
-def _color(annot: fitz.Annot) -> tuple[str, str]:
+def _color(annot: pymupdf.Annot) -> tuple[str, str]:
     colors = annot.colors
     value = colors.get("stroke") or colors.get("fill") or []
     if len(value) == 1:
@@ -283,7 +283,7 @@ def _date(value: str) -> str:
         return value
 
 
-def _reply_parent(doc: fitz.Document, xref: int) -> int | None:
+def _reply_parent(doc: pymupdf.Document, xref: int) -> int | None:
     # /IRT also links grouped graphical annotations. Those are independent
     # selections, not conversation replies, and must keep their own quotes.
     _, reply_type = doc.xref_get_key(xref, "RT")
@@ -313,7 +313,7 @@ def extract_pdf(data: bytes, filename: str, password: str = "") -> ExtractionRes
     if not data:
         raise PDFExtractionError("PDF dosyası boş. Geçerli bir PDF yükleyin.")
     try:
-        doc = fitz.open(stream=data, filetype="pdf")
+        doc = pymupdf.open(stream=data, filetype="pdf")
     except Exception as error:
         raise PDFExtractionError("PDF açılamadı. Dosya bozuk olabilir veya geçerli bir PDF olmayabilir.") from error
 

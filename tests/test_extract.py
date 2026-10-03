@@ -3,7 +3,7 @@
 import base64
 import re
 
-import fitz
+import pymupdf
 import pytest
 
 from pdf_notes.extract import extract_pdf
@@ -11,14 +11,14 @@ from pdf_notes.models import PDFExtractionError
 
 
 def _pdf(*, encrypted=False):
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "Research result supports the hypothesis.", fontsize=12)
     doc.set_metadata({"title": "Research paper"})
     annot = page.add_highlight_annot(page.search_for("Research result", quads=True))
     annot.set_info(content="Compare with the second experiment.", title="Ada", creationDate="D:20260929123456+03'00'", modDate="D:20260930110000Z")
     annot.update()
-    data = doc.tobytes(encryption=fitz.PDF_ENCRYPT_AES_256, owner_pw="owner-secret", user_pw="read-secret") if encrypted else doc.tobytes()
+    data = doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="owner-secret", user_pw="read-secret") if encrypted else doc.tobytes()
     doc.close()
     return data
 
@@ -59,7 +59,7 @@ def test_quote_comment_metadata_context_and_stable_ids():
     ((0.5, 0.5, 0.5), "Gri", "#808080"),
 ])
 def test_actual_annotation_colors(rgb, name, expected_hex):
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "Colored quotation")
     annot = page.add_highlight_annot(page.search_for("Colored"))
@@ -73,7 +73,7 @@ def test_actual_annotation_colors(rgb, name, expected_hex):
 
 
 def test_disjoint_quadpoints_exclude_rectangle_contents_and_other_column():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "First selected", fontsize=12)
     page.insert_text((330, 72), "OTHER COLUMN BAIT", fontsize=12)
@@ -90,7 +90,7 @@ def test_disjoint_quadpoints_exclude_rectangle_contents_and_other_column():
 
 
 def test_disjoint_segments_on_same_line_do_not_fill_unmarked_gap():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "FIRST unmarked middle LAST", fontsize=12)
     page.add_highlight_annot(page.search_for("FIRST", quads=True) + page.search_for("LAST", quads=True))
@@ -106,7 +106,7 @@ def test_disjoint_segments_on_same_line_do_not_fill_unmarked_gap():
     ("add_strikeout_annot", "Üstü çizili"),
 ])
 def test_line_markup_does_not_capture_adjacent_lines(method, kind):
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "Only this line", fontsize=12)
     page.insert_text((72, 86), "Do not include me", fontsize=12)
@@ -122,7 +122,7 @@ def test_line_markup_does_not_capture_adjacent_lines(method, kind):
 
 @pytest.mark.parametrize("page_rotation, text_rotation", [(90, 0), (0, 90), (0, 270)])
 def test_rotated_pages_and_vertical_text(page_rotation, text_rotation):
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((200, 240), "Rotated quotation", rotate=text_rotation, fontsize=12)
     page.add_highlight_annot(page.search_for("Rotated quotation", quads=True))
@@ -133,10 +133,10 @@ def test_rotated_pages_and_vertical_text(page_rotation, text_rotation):
 
 
 def test_diagonal_quad_selects_rotated_characters():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
-    point = fitz.Point(200, 240)
-    page.insert_text(point, "Diagonal quotation", fontsize=12, morph=(point, fitz.Matrix(1, 1).prerotate(35)))
+    point = pymupdf.Point(200, 240)
+    page.insert_text(point, "Diagonal quotation", fontsize=12, morph=(point, pymupdf.Matrix(1, 1).prerotate(35)))
     page.add_highlight_annot(page.search_for("Diagonal quotation", quads=True))
     record = extract_pdf(doc.tobytes(), "diagonal.pdf").records[0]
     assert record.quote == "Diagonal quotation"
@@ -144,7 +144,7 @@ def test_diagonal_quad_selects_rotated_characters():
 
 
 def test_sticky_notes_have_inferred_paragraph_and_never_invent_quotes():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "The paragraph associated with the note.", fontsize=12)
     page.insert_text((72, 300), "A different paragraph far below.", fontsize=12)
@@ -162,10 +162,10 @@ def test_sticky_notes_have_inferred_paragraph_and_never_invent_quotes():
 
 
 def test_free_text_is_exported_as_comment():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "Existing paragraph", fontsize=12)
-    page.add_freetext_annot(fitz.Rect(72, 85, 260, 120), "An explanation added to the PDF", fontsize=10)
+    page.add_freetext_annot(pymupdf.Rect(72, 85, 260, 120), "An explanation added to the PDF", fontsize=10)
     result = extract_pdf(doc.tobytes(), "freetext.pdf")
     assert len(result.records) == 1
     assert result.records[0].kind == "Serbest metin"
@@ -176,11 +176,11 @@ def test_free_text_is_exported_as_comment():
 
 
 def test_free_text_appearances_cannot_contaminate_underlying_quote():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "Original source", fontsize=12)
     selection = page.search_for("Original source", quads=True)
-    page.add_freetext_annot(fitz.Rect(72, 59, 250, 78), "OVERLAY NOTE", fontsize=12)
+    page.add_freetext_annot(pymupdf.Rect(72, 59, 250, 78), "OVERLAY NOTE", fontsize=12)
     page.add_highlight_annot(selection)
     result = extract_pdf(doc.tobytes(), "overlay.pdf")
     highlight = next(record for record in result.records if record.kind == "Vurgulama")
@@ -191,11 +191,11 @@ def test_free_text_appearances_cannot_contaminate_underlying_quote():
 
 
 def test_note_paragraph_context_prefers_body_text_over_page_footer():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 580), "A nearby source paragraph", fontsize=12)
     page.insert_text((72, 790), "Page footer", fontsize=9)
-    page.add_freetext_annot(fitz.Rect(72, 650, 260, 720), "A note near the bottom", fontsize=10)
+    page.add_freetext_annot(pymupdf.Rect(72, 650, 260, 720), "A note near the bottom", fontsize=10)
     record = extract_pdf(doc.tobytes(), "footer.pdf").records[0]
     assert record.context == "A nearby source paragraph"
     assert record.context_inferred is True
@@ -203,7 +203,7 @@ def test_note_paragraph_context_prefers_body_text_over_page_footer():
 
 
 def test_nested_replies_attach_to_original_note_without_duplicate_records():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "Selected passage", fontsize=12)
     parent = page.add_highlight_annot(page.search_for("Selected passage"))
@@ -227,7 +227,7 @@ def test_nested_replies_attach_to_original_note_without_duplicate_records():
 
 
 def test_orphan_reply_is_preserved_with_warning():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     reply = page.add_text_annot((55, 62), "Unattached comment")
     reply.update()
@@ -240,7 +240,7 @@ def test_orphan_reply_is_preserved_with_warning():
 
 
 def test_grouped_markup_keeps_each_selection_instead_of_losing_child_quote():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
     page.insert_text((72, 72), "First selection")
     page.insert_text((72, 110), "Second selection")
@@ -270,9 +270,9 @@ def test_unreadable_files_have_clear_errors(data):
 
 
 def test_scan_and_flattened_annotations_have_actionable_warning():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
-    page.draw_rect(fitz.Rect(72, 72, 150, 92), color=(1, 1, 0), fill=(1, 1, 0))
+    page.draw_rect(pymupdf.Rect(72, 72, 150, 92), color=(1, 1, 0), fill=(1, 1, 0))
     result = extract_pdf(doc.tobytes(), "scan.pdf")
     assert result.records == []
     assert any("OCR" in warning for warning in result.warnings)
@@ -281,9 +281,9 @@ def test_scan_and_flattened_annotations_have_actionable_warning():
 
 
 def test_markups_without_text_keep_comment_and_warn():
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page()
-    annot = page.add_highlight_annot(fitz.Rect(72, 72, 160, 92))
+    annot = page.add_highlight_annot(pymupdf.Rect(72, 72, 160, 92))
     annot.set_info(content="A useful note on an image")
     annot.update()
     result = extract_pdf(doc.tobytes(), "image.pdf")
@@ -295,7 +295,7 @@ def test_markups_without_text_keep_comment_and_warn():
 
 
 def test_records_have_one_based_page_numbers_and_unique_ids():
-    doc = fitz.open()
+    doc = pymupdf.open()
     for index in range(2):
         page = doc.new_page()
         page.insert_text((72, 72), f"Page {index + 1}")
@@ -309,11 +309,11 @@ def test_records_have_one_based_page_numbers_and_unique_ids():
 @pytest.mark.parametrize("rotation", [0, 90, 180, 270])
 @pytest.mark.parametrize("cropped", [False, True])
 def test_empty_rectangle_becomes_image_note_with_correct_crop(rotation, cropped):
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = doc.new_page(width=500, height=600)
         if cropped:
-            page.set_cropbox(fitz.Rect(40, 50, 460, 550))
-        area = fitz.Rect(100, 100, 200, 160)
+            page.set_cropbox(pymupdf.Rect(40, 50, 460, 550))
+        area = pymupdf.Rect(100, 100, 200, 160)
         page.draw_rect(area, fill=(1, 0, 0), color=None)
         # An opaque annotation must not obscure the actual source image.
         annot = page.add_rect_annot(area)
@@ -330,16 +330,16 @@ def test_empty_rectangle_becomes_image_note_with_correct_crop(rotation, cropped)
     assert record.context_inferred is False
     png = base64.b64decode(record.image_base64)
     assert png.startswith(b"\x89PNG")
-    pix = fitz.Pixmap(png)
+    pix = pymupdf.Pixmap(png)
     expected_size = size if rotation in (0, 180) else size[::-1]
     assert (pix.width, pix.height) == expected_size
     assert pix.pixel(pix.width // 2, pix.height // 2) == (255, 0, 0)
 
 
 def test_rectangle_keeps_comment_and_replies_with_image():
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = doc.new_page()
-        annot = page.add_rect_annot(fitz.Rect(60, 60, 200, 200))
+        annot = page.add_rect_annot(pymupdf.Rect(60, 60, 200, 200))
         annot.set_info(content="Table note", title="Ada")
         annot.update()
         reply = page.add_text_annot((55, 55), "Reply on table")
@@ -355,9 +355,9 @@ def test_failed_crop_preserves_note_and_warns(monkeypatch):
         raise ValueError("Invalid region")
 
     monkeypatch.setattr("pdf_notes.extract.render_region", broken_crop)
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = doc.new_page()
-        page.add_rect_annot(fitz.Rect(60, 60, 200, 200))
+        page.add_rect_annot(pymupdf.Rect(60, 60, 200, 200))
         result = extract_pdf(doc.tobytes(), "bad-region.pdf")
     assert len(result.records) == 1
     assert not result.records[0].image_base64
@@ -366,7 +366,7 @@ def test_failed_crop_preserves_note_and_warns(monkeypatch):
 
 def test_one_broken_annotation_does_not_discard_other_notes(monkeypatch):
     data = _pdf()
-    original = fitz.Page.load_annot
+    original = pymupdf.Page.load_annot
     calls = 0
 
     def sometimes_broken(page, xref):
@@ -376,12 +376,12 @@ def test_one_broken_annotation_does_not_discard_other_notes(monkeypatch):
             raise RuntimeError("Damaged annotation")
         return original(page, xref)
 
-    doc = fitz.open(stream=data, filetype="pdf")
+    doc = pymupdf.open(stream=data, filetype="pdf")
     page = doc[0]
     page.add_text_annot((55, 85), "Surviving comment")
     data = doc.tobytes()
     doc.close()
-    monkeypatch.setattr(fitz.Page, "load_annot", sometimes_broken)
+    monkeypatch.setattr(pymupdf.Page, "load_annot", sometimes_broken)
     result = extract_pdf(data, "damaged-note.pdf")
     assert [record.comment for record in result.records] == ["Surviving comment"]
     assert any("bir not okunamadı" in warning for warning in result.warnings)

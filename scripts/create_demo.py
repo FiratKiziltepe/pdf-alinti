@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import fitz
+import pymupdf
 
 
 INK = (0.13, 0.19, 0.24)
@@ -43,29 +43,29 @@ def locate_font(explicit: Path | None = None) -> Path:
     )
 
 
-def write_box(page: fitz.Page, rect: tuple[float, float, float, float], text: str,
+def write_box(page: pymupdf.Page, rect: tuple[float, float, float, float], text: str,
               fontsize: float = FONT_SIZE, color: tuple = INK) -> None:
     result = page.insert_textbox(
-        fitz.Rect(rect), text, fontname=FONT_NAME, fontsize=fontsize,
+        pymupdf.Rect(rect), text, fontname=FONT_NAME, fontsize=fontsize,
         lineheight=1.55 if fontsize <= 13 else 1.25, color=color,
     )
     if result < 0:
         raise RuntimeError(f"Text did not fit: {text[:70]!r}")
 
 
-def decorate_page(page: fitz.Page, font: Path, number: int) -> None:
+def decorate_page(page: pymupdf.Page, font: Path, number: int) -> None:
     page.insert_font(fontname=FONT_NAME, fontfile=str(font))
     page.draw_rect(page.rect, color=None, fill=PAPER)
-    page.draw_rect(fitz.Rect(0, 0, 595, 10), color=None, fill=TEAL)
+    page.draw_rect(pymupdf.Rect(0, 0, 595, 10), color=None, fill=TEAL)
     write_box(page, (55, 36, 540, 59), "OKUMA ATÖLYESİ  /  SENTETİK ÖRNEK", 9, TEAL)
-    page.draw_line(fitz.Point(55, 777), fitz.Point(540, 777), color=(.79, .83, .80), width=.6)
+    page.draw_line(pymupdf.Point(55, 777), pymupdf.Point(540, 777), color=(.79, .83, .80), width=.6)
     write_box(page, (55, 790, 490, 822),
               "Gösterim için üretilmiştir. Gerçek bir makale veya kaynak değildir.", 8, MUTED)
     write_box(page, (516, 790, 540, 822), f"{number:02d}", 9, TEAL)
 
 
-def annotate(page: fitz.Page, phrase: str, kind: str, color: tuple,
-             comment: str, author: str = "Deniz Araştırmacı") -> fitz.Annot:
+def annotate(page: pymupdf.Page, phrase: str, kind: str, color: tuple,
+             comment: str, author: str = "Deniz Araştırmacı") -> pymupdf.Annot:
     quads = page.search_for(phrase, quads=True)
     if not quads:
         raise RuntimeError(f"Annotation target absent: {phrase!r}")
@@ -87,7 +87,7 @@ def annotate(page: fitz.Page, phrase: str, kind: str, color: tuple,
 
 
 def create_demo(font: Path) -> bytes:
-    doc = fitz.open()
+    doc = pymupdf.open()
     page = doc.new_page(width=595, height=842)
     decorate_page(page, font, 1)
     write_box(page, (55, 80, 540, 153), "Akademik okumada\nrenkler ve araştırma notları", 23)
@@ -123,7 +123,7 @@ def create_demo(font: Path) -> bytes:
     annotate(page, "Tek bir örnek, genel bir sonuca ulaşmak için yeterli değildir.",
              "Highlight", (1, .35, .35),
              "Sınırlılık başlığı için önemli. Tekil örneklerin genellenmesi hakkında ek kaynak ara.")
-    sticky = page.add_text_annot(fitz.Point(31, 627),
+    sticky = page.add_text_annot(pymupdf.Point(31, 627),
                                  "Bu paragrafı örneklem çeşitliliği tartışmasıyla ilişkilendir. "
                                  "Karşılaştırmalı bir çalışma eklemek gerekli.", icon="Comment")
     sticky.set_info(title="Deniz Araştırmacı", subject="Paragraf açıklaması",
@@ -170,7 +170,7 @@ def create_demo(font: Path) -> bytes:
         "Araştırmacının açıklamasını özgün cümleden ayrı tut."
     )
     freetext = page.add_freetext_annot(
-        fitz.Rect(55, 654, 540, 724),
+        pymupdf.Rect(55, 654, 540, 724),
         freetext_content,
         fontsize=10, fill_color=(.89, .95, .93), text_color=INK,
         border_color=(.61, .78, .72), border_width=1, richtext=True,
@@ -203,7 +203,7 @@ def main() -> None:
     data = create_demo(locate_font(args.font))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_bytes(data)
-    with fitz.open(stream=data, filetype="pdf") as doc:
+    with pymupdf.open(stream=data, filetype="pdf") as doc:
         assert len(doc) == 2
         assert sum(1 for p in doc for _ in p.annots()) == 9
         assert "özgün ifade korunmalıdır" in " ".join(p.get_text() for p in doc)

@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from streamlit.testing.v1 import AppTest
-import fitz
+import pymupdf
 
 from pdf_notes.extract import extract_pdf
 
@@ -62,9 +62,9 @@ def test_turkish_search_and_no_results():
 
 
 def test_visual_note_card_filter_and_exports():
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = doc.new_page()
-        page.add_rect_annot(fitz.Rect(60, 60, 200, 200))
+        page.add_rect_annot(pymupdf.Rect(60, 60, 200, 200))
         data = doc.tobytes()
     result = extract_pdf(data, "table.pdf")
     app = AppTest.from_file(str(APP), default_timeout=30)
@@ -98,9 +98,9 @@ def test_pdf_download_context_switch_uses_distinct_cached_exports():
     exports = app.session_state["export_cache"]
     with_context = next(value for key, value in exports.items() if key[1:] == ("pdf", True))
     without_context = next(value for key, value in exports.items() if key[1:] == ("pdf", False))
-    with fitz.open(stream=with_context, filetype="pdf") as pdf:
+    with pymupdf.open(stream=with_context, filetype="pdf") as pdf:
         assert "Bağlam" in "".join(page.get_text() for page in pdf)
-    with fitz.open(stream=without_context, filetype="pdf") as pdf:
+    with pymupdf.open(stream=without_context, filetype="pdf") as pdf:
         text = "".join(page.get_text() for page in pdf)
         assert "Bağlam" not in text
         assert "Sizin notunuz" in text

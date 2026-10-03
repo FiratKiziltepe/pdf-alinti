@@ -5,7 +5,7 @@ import json
 from dataclasses import replace
 
 import pytest
-import fitz
+import pymupdf
 from docx import Document
 from docx.oxml.ns import qn
 from openpyxl import load_workbook
@@ -143,15 +143,15 @@ def test_empty_exports_remain_valid_downloads():
     assert json.loads(export_json([]))["records"] == []
     assert Document(io.BytesIO(export_docx([]))).paragraphs
     assert load_workbook(io.BytesIO(export_xlsx([]))).active.max_row == 1
-    with fitz.open(stream=export_pdf([]), filetype="pdf") as pdf:
+    with pymupdf.open(stream=export_pdf([]), filetype="pdf") as pdf:
         assert len(pdf) == 1
         assert "not bulunamadı" in pdf[0].get_text()
 
 
 def test_visual_note_image_survives_exports(annotation):
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = doc.new_page(width=100, height=200)
-        page.draw_rect(fitz.Rect(10, 10, 90, 190), fill=(1, 0, 0))
+        page.draw_rect(pymupdf.Rect(10, 10, 90, 190), fill=(1, 0, 0))
         png = page.get_pixmap().tobytes("png")
     encoded = base64.b64encode(png).decode("ascii")
     record = replace(annotation, quote="", context="", image_base64=encoded)
@@ -171,7 +171,7 @@ def test_visual_note_image_survives_exports(annotation):
     assert visuals._images[0]._data() == png
     assert f"data:image/png;base64,{encoded}" in export_markdown([record]).decode("utf-8")
     assert json.loads(export_json([record]))["records"][0]["image_base64"] == encoded
-    with fitz.open(stream=export_pdf([record]), filetype="pdf") as pdf:
+    with pymupdf.open(stream=export_pdf([record]), filetype="pdf") as pdf:
         assert sum(len(page.get_images()) for page in pdf) >= 1
 
 
@@ -185,7 +185,7 @@ def test_context_option_in_every_export(annotation, include_context):
     sheet = load_workbook(io.BytesIO(export_xlsx([record], include_context=include_context))).active
     excel_text = str(list(sheet.values))
     json_data = json.loads(export_json([record], include_context=include_context))["records"][0]
-    with fitz.open(stream=export_pdf([record], include_context=include_context), filetype="pdf") as pdf:
+    with pymupdf.open(stream=export_pdf([record], include_context=include_context), filetype="pdf") as pdf:
         pdf_text = "\n".join(p.get_text() for p in pdf)
     for text in (md, word_text, str(row), excel_text, str(json_data), pdf_text):
         assert (record.context in text) is include_context
@@ -199,7 +199,7 @@ def test_context_option_in_every_export(annotation, include_context):
 
 def test_pdf_unicode_colored_notes_and_long_content(annotation):
     record = replace(annotation, comment=("Türkçe: İı Şş Ğğ Çç Öö Üü <etiket> & not.\n" * 110) + "SON_NOT", quote="ALINTI_BASLANGIC γ α β × ﬀ ﬁ")
-    with fitz.open(stream=export_pdf([record]), filetype="pdf") as pdf:
+    with pymupdf.open(stream=export_pdf([record]), filetype="pdf") as pdf:
         assert len(pdf) > 1
         text = "\n".join(page.get_text() for page in pdf)
         assert "ALINTI_BASLANGIC" in text and "SON_NOT" in text
