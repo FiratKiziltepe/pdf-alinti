@@ -7,6 +7,7 @@ Paragraph context comes from PDF text blocks and is explicitly inferred.
 
 from __future__ import annotations
 
+import base64
 import colorsys
 import hashlib
 import math
@@ -18,6 +19,7 @@ from pathlib import Path
 import fitz
 
 from .models import AnnotationRecord, ExtractionResult, PDFExtractionError
+from .preview import render_region
 
 
 _MARKUP_TYPES = {8, 9, 10, 11}
@@ -25,7 +27,7 @@ _KINDS = {
     0: "Not",
     2: "Serbest metin",
     3: "Çizgi",
-    4: "Dikdörtgen",
+    4: "Görsel not (çerçeve)",
     5: "Elips",
     6: "Çokgen",
     7: "Çoklu çizgi",
@@ -362,14 +364,19 @@ def extract_pdf(data: bytes, filename: str, password: str = "") -> ExtractionRes
                     info = annot.info or {}
                     comment = (info.get("content") or "").strip()
                     parent = _reply_parent(doc, xref)
-                    if annot_type not in _MARKUP_TYPES and annot_type not in {0, 2, 14} and not comment and parent is None:
+                    if annot_type not in _MARKUP_TYPES and annot_type not in {0, 2, 4, 14} and not comment and parent is None:
                         continue
                     color_name, color_hex = _color(annot)
-                    quote, context = "", ""
+                    quote, context, image_base64 = "", "", ""
                     if annot_type in _MARKUP_TYPES:
                         quote, context = _marked_text(annot, page_text)
                         if not quote:
                             result.warnings.append(f"{page_number}. sayfadaki bir işaretlemenin seçili metni bulunamadı. Tarama, metin katmanı veya seçim geometrisi nedeniyle açıklama tek başına aktarılmış olabilir.")
+                    elif annot_type == 4:
+                        try:
+                            image_base64 = base64.b64encode(render_region(page, annot.rect)).decode("ascii")
+                        except Exception:
+                            result.warnings.append(f"{page_number}. sayfadaki çerçevenin görüntüsü oluşturulamadı; not bilgileri korundu.")
                     else:
                         context = _nearby_context(annot.rect, page_text, page)
                     record = AnnotationRecord(
@@ -388,6 +395,7 @@ def extract_pdf(data: bytes, filename: str, password: str = "") -> ExtractionRes
                         modified=_date(info.get("modDate") or ""),
                         rect=tuple(round(float(value), 3) for value in annot.rect),
                         context_inferred=bool(context),
+                        image_base64=image_base64,
                     )
                     records[xref] = record
                     if parent is not None:

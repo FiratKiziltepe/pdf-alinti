@@ -33,7 +33,7 @@ Tarayıcıda `http://localhost:8501` adresini açın. Sanal ortamı etkinleştir
 
 ## Streamlit Community Cloud’da yayınlama
 
-1. Proje dosyalarını GitHub deponuzun `main` dalına gönderin. `app.py`, `requirements.txt`, `pdf_notes/`, `assets/ornek-notlar.pdf` ve `.streamlit/config.toml` depoda bulunmalıdır.
+1. Proje dosyalarını GitHub deponuzun `main` dalına gönderin. `app.py`, `requirements.txt`, `pdf_notes/`, `assets/ornek-notlar.pdf`, `assets/fonts/` ve `.streamlit/config.toml` depoda bulunmalıdır.
 2. [Streamlit Community Cloud](https://share.streamlit.io/) hesabınızda **Create app** seçeneğini açıp GitHub deposunu bağlayın.
 3. **Repository** alanında deponuzu, **Branch** alanında `main`, **Main file path** alanında `app.py` seçin.
 4. **Advanced settings** altında Python sürümünü **3.12** seçip **Deploy** düğmesine basın. Uygulama API anahtarı, veritabanı veya Secrets ayarı gerektirmez.
@@ -43,26 +43,29 @@ Yayın tamamlandığında Streamlit uygulamanın `https://…streamlit.app` adre
 ## Kullanım
 
 1. Vurgu ve notları PDF okuyucunuzda **dosyaya kaydedin**. Okuyucunun kendi kütüphanesinde kalan açıklamaları varsa “açıklamalarla birlikte PDF’yi dışa aktar” seçeneğini kullanın.
-2. Soldan PDF’lerinizi yükleyip **Alıntıları çıkar** düğmesine basın. Tek seferde en fazla 10 dosya, dosya başına 50 MB yüklenebilir. Parolalı belgeler için PDF parolasını girin. Her yeni işleme mevcut çalışma alanını değiştirir; farklı parolalı grupları ayrı işleyin.
+2. Soldan PDF’lerinizi yükleyip **Alıntıları çıkar** düğmesine basın. Tek seferde en fazla 30 dosya, dosya başına 50 MB yüklenebilir. Parolalı belgeler için PDF parolasını girin. Her yeni işleme mevcut çalışma alanını değiştirir; farklı parolalı grupları ayrı işleyin.
 3. Belge, renk ve işaret türüne göre filtreleyin; alıntı, not ve bağlam içinde arama yapın. Boş bırakılan filtre tüm kayıtları kapsar.
-4. Kartlarda seçili alıntı ve eklenen yorumu birlikte okuyun. **İlgili paragraf** bölümünü açarak bağlamı, sağdaki önizlemeden kaynak sayfayı kontrol edin.
-5. Word, Excel, Markdown, CSV veya JSON biçimini seçip **kayıtları indir** düğmesine basın. Dışa aktarma, liste sayfalamasından bağımsız olarak geçerli filtrelere uyan bütün kayıtları kapsar. Bağlamı arayüzde gizlemek indirme dosyasından kaldırmaz.
+4. Kartlarda **Alıntı**, **Bağlam** ve renkli kutudaki **Sizin notunuz** alanlarını okuyun. Bağlam bölümünü açarak çevredeki metni, sağdaki önizlemeden kaynak sayfayı kontrol edin.
+5. PDF, Word, Excel, Markdown, CSV veya JSON biçimini seçip **kayıtları indir** düğmesine basın. Dışa aktarma, liste sayfalamasından bağımsız olarak geçerli filtrelere uyan bütün kayıtları kapsar. **Bağlamı indirmeye dahil et** seçeneğini kapatırsanız yalnızca işaretli alıntılar, görseller ve notlarınız kaynak bilgileriyle indirilir; bağlam alanı tüm biçimlerden çıkarılır. Soldaki **Bağlamı göster** seçeneği yalnızca ekran görünümünü değiştirir.
 
 Dosya yüklemeden **Örnek PDF ile dene** düğmesine basabilirsiniz. İki sayfalık [örnek PDF](assets/ornek-notlar.pdf), gerçek PDF açıklamaları içerir; metni gösterim amacıyla üretilmiştir.
 
 ## Çıkarılan bilgiler
 
-Her kayıtta kaynak PDF, belge başlığı, PDF sayfa numarası, işaret türü, renk adı ve özgün HEX rengi, seçili alıntı, paragraf bağlamı, açıklama, not yazarı ve PDF’de varsa tarihler bulunur. JSON ayrıca kayıt kimliği ve koordinatları korur. Aynı vurgudaki yorumlar ve bağlanabilen yanıtlar aynı kayıtta birleştirilir.
+Her kayıtta kaynak PDF, belge başlığı, PDF sayfa numarası, işaret türü, seçili alıntı, isteğe bağlı bağlam, sizin notunuz, not yazarı ve PDF’de varsa tarihler bulunur. Renkler arayüzde filtrelemek için korunur; renk adı ve HEX kodu indirme dosyalarına yazılmaz. JSON (şema sürümü 2) ayrıca kayıt kimliği ve koordinatları korur. Aynı vurgudaki yorumlar ve bağlanabilen yanıtlar aynı kayıtta birleştirilir.
 
 - **Vurgulama / alt çizgi / dalgalı çizgi / üstü çizili metin:** PDF’nin QuadPoints seçim geometrisinden karakterler çıkarılır. Böylece çok satırlı ve çok sütunlu metinde işaretin dışındaki cümlelerin karışması azaltılır.
 - **Yapışkan not / serbest metin:** Açıklama korunur; en yakın metin bloğu ilgili paragraf olarak konumdan tahmin edilir. Bunlarda seçili bir metin aralığı olmadığı için alıntı alanı boş kalır. Paragraf, alıntıymış gibi sunulmaz.
-- **Diğer şekiller:** Açıklama içeren çizgi, dikdörtgen, elips gibi notların yorumu ve yakın bağlamı çıkarılır. Ek dosya ve medya içerikleri aktarılmaz.
+- **Çerçeve / Zotero alan seçimi:** Standart PDF dikdörtgen açıklamaları, yorumları boş olsa bile **Görsel not (çerçeve)** olarak çıkarılır. Çerçevenin içi PNG olarak kırpılır; tablo, şekil ve taranmış içerik korunur. Çerçeve ve diğer açıklama katmanları görüntüyü örtmez. Sayfa yönü ve kırpma sınırları dikkate alınır. Karttaki **Görseli indir (PNG)** düğmesiyle ayrı görüntüyü indirebilirsiniz. Bu işlem OCR yapmaz ve görüntüden alıntı metni üretmez.
+- **Diğer şekiller:** Açıklama içeren çizgi, elips gibi notların yorumu ve yakın bağlamı çıkarılır. Ek dosya ve medya içerikleri aktarılmaz.
 
-Renk adı yakın bir renk ailesidir; dosyadaki gerçek renk HEX koduyla korunur. Word alıntıları okunabilir bir renk tonuyla gösterir. Excel’de renk hücreleri özgün renkle boyanır. CSV Türkçe karakterlerin Excel’de açılabilmesi için UTF-8 BOM içerir. Excel’in hücre uzunluğu sınırını aşan metinler numaralı devam satırlarıyla saklanır; JSON metnin tamamını bölmeden korur.
+Görsel notlar PDF ve Word'de ilgili kayda, Excel'de kayıt kimliği ve sayfa bilgisiyle **Görsel notlar** çalışma sayfasına eklenir. JSON, PNG'yi `image_base64` alanında kayıpsız korur. Markdown görüntüyü veri URL'siyle dosyaya gömer; okuyucunuz bunu desteklemiyorsa PDF, Word veya PNG indirmeyi kullanın. CSV yalnızca metin ve kayıt bilgilerini içerir. Görüntüler en fazla 3× çözünürlükte, uzun kenarı 2000 pikseli aşmayacak şekilde hazırlanır.
+
+PDF, Word ve Excel'de **Sizin notunuz** alanı arayüzdeki gibi açık mercan renkli bir kutu/hücreyle gösterilir. Markdown not kutusu HTML biçimindedir; renklerin gösterimi okuyucu desteğine bağlıdır. CSV ve JSON düz veri biçimleridir, görsel kutu biçimlendirmesi içermez. PDF, Türkçe destekli yazı tiplerini dosyaya gömer ve uzun içerikleri sayfalara böler. CSV Türkçe karakterlerin Excel’de açılabilmesi için UTF-8 BOM içerir. Excel’in hücre uzunluğu sınırını aşan metinler numaralı devam satırlarıyla saklanır; JSON metnin tamamını bölmeden korur.
 
 ## Bilinmesi gereken sınırlar
 
-- Taranmış PDF’de OCR metin katmanı yoksa alıntı metni okunamaz; açıklamalar yine çıkarılabilir. Bu sürüm OCR yapmaz.
+- Taranmış PDF’de OCR metin katmanı yoksa alıntı metni okunamaz; açıklamalar ve çerçeve içindeki görüntüler yine çıkarılabilir. Bu sürüm OCR yapmaz.
 - PDF’ye birleştirilmiş (flattened) renkler/çizgiler ve görüntü olarak kaydedilmiş notlar standart PDF açıklaması değildir, ayrı kayıt olarak çıkarılamaz.
 - Bağlam, PDF’nin metin bloklarına göre eşleştirilir. Bir blok her zaman tam bir paragraf değildir; kenar notlarında eşleşme tahminidir. Akademik alıntıyı kaynak sayfayla kontrol edin.
 - Sayfa numarası PDF’nin fiziksel sayfasıdır; basılı makalenin üzerinde yazan numaradan farklı olabilir. PDF başlığı bibliyografik künye değildir; uygulama DOI, APA veya başka bir kaynakça uydurmaz.

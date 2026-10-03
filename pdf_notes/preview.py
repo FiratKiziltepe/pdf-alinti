@@ -1,8 +1,28 @@
 """Render PDF pages in memory for checking an extracted quotation."""
 
+import math
+
 import fitz
 
 from .models import PDFExtractionError
+
+
+def render_region(page: fitz.Page, rect: fitz.Rect) -> bytes:
+    """Render a selection in page orientation, without annotation overlays.
+
+    Annotation coordinates are unrotated; pixmap clips use rotated page space.
+    Bound resolution even for unusually large page selections.
+    """
+    if not all(math.isfinite(value) for value in rect) or rect.is_empty or rect.is_infinite:
+        raise ValueError("Invalid image selection")
+    clip = (rect * page.rotation_matrix) & page.rect
+    if clip.is_empty:
+        raise ValueError("Image selection is outside the page")
+    zoom = min(3.0, 2000 / max(clip.width, clip.height))
+    return page.get_pixmap(
+        matrix=fitz.Matrix(zoom, zoom), clip=clip,
+        colorspace=fitz.csRGB, alpha=False, annots=False,
+    ).tobytes("png")
 
 
 def render_page(data: bytes, page: int, password: str = "") -> bytes:

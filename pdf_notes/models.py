@@ -20,6 +20,8 @@ class AnnotationRecord:
     modified: str = ""
     rect: tuple[float, float, float, float] | None = None
     context_inferred: bool = False
+    # PNG encoded as base64 keeps records JSON-serializable and self-contained.
+    image_base64: str = ""
 
 
 @dataclass

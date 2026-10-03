@@ -1,5 +1,6 @@
 """Generated PDFs exercise selection geometry and preservation of note data."""
 
+import base64
 import re
 
 import fitz
@@ -303,6 +304,64 @@ def test_records_have_one_based_page_numbers_and_unique_ids():
     assert [record.page for record in result.records] == [1, 2]
     assert len({record.id for record in result.records}) == 2
     doc.close()
+
+
+@pytest.mark.parametrize("rotation", [0, 90, 180, 270])
+@pytest.mark.parametrize("cropped", [False, True])
+def test_empty_rectangle_becomes_image_note_with_correct_crop(rotation, cropped):
+    with fitz.open() as doc:
+        page = doc.new_page(width=500, height=600)
+        if cropped:
+            page.set_cropbox(fitz.Rect(40, 50, 460, 550))
+        area = fitz.Rect(100, 100, 200, 160)
+        page.draw_rect(area, fill=(1, 0, 0), color=None)
+        # An opaque annotation must not obscure the actual source image.
+        annot = page.add_rect_annot(area)
+        annot.set_colors(stroke=(0, 1, 0), fill=(0, 1, 0))
+        annot.update()
+        # Some MuPDF versions expand Rect to accommodate the border.
+        size = (round(annot.rect.width * 3), round(annot.rect.height * 3))
+        page.set_rotation(rotation)
+        result = extract_pdf(doc.tobytes(), "image-only.pdf")
+    assert len(result.records) == 1
+    record = result.records[0]
+    assert record.kind == "Görsel not (çerçeve)"
+    assert record.quote == record.context == record.comment == ""
+    assert record.context_inferred is False
+    png = base64.b64decode(record.image_base64)
+    assert png.startswith(b"\x89PNG")
+    pix = fitz.Pixmap(png)
+    expected_size = size if rotation in (0, 180) else size[::-1]
+    assert (pix.width, pix.height) == expected_size
+    assert pix.pixel(pix.width // 2, pix.height // 2) == (255, 0, 0)
+
+
+def test_rectangle_keeps_comment_and_replies_with_image():
+    with fitz.open() as doc:
+        page = doc.new_page()
+        annot = page.add_rect_annot(fitz.Rect(60, 60, 200, 200))
+        annot.set_info(content="Table note", title="Ada")
+        annot.update()
+        reply = page.add_text_annot((55, 55), "Reply on table")
+        doc.xref_set_key(reply.xref, "IRT", f"{annot.xref} 0 R")
+        record, = extract_pdf(doc.tobytes(), "table.pdf").records
+    assert record.image_base64
+    assert record.author == "Ada"
+    assert "Table note" in record.comment and "Reply on table" in record.comment
+
+
+def test_failed_crop_preserves_note_and_warns(monkeypatch):
+    def broken_crop(*args):
+        raise ValueError("Invalid region")
+
+    monkeypatch.setattr("pdf_notes.extract.render_region", broken_crop)
+    with fitz.open() as doc:
+        page = doc.new_page()
+        page.add_rect_annot(fitz.Rect(60, 60, 200, 200))
+        result = extract_pdf(doc.tobytes(), "bad-region.pdf")
+    assert len(result.records) == 1
+    assert not result.records[0].image_base64
+    assert any("görüntüsü oluşturulamadı" in warning for warning in result.warnings)
 
 
 def test_one_broken_annotation_does_not_discard_other_notes(monkeypatch):

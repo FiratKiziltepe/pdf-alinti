@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import html
 import re
@@ -15,6 +16,7 @@ from pdf_notes.exporters import (
     export_docx,
     export_json,
     export_markdown,
+    export_pdf,
     export_xlsx,
 )
 from pdf_notes.extract import extract_pdf
@@ -24,10 +26,11 @@ from pdf_notes.preview import render_page
 
 st.set_page_config(page_title="Alıntı · PDF not defteri", page_icon="📑", layout="wide")
 
-MAX_FILES = 10
+MAX_FILES = 30
 MAX_FILE_BYTES = 50 * 1024 * 1024
 PAGE_SIZE = 15
 EXPORT_FORMATS = {
+    "PDF (.pdf)": (export_pdf, "pdf", "application/pdf"),
     "Word (.docx)": (export_docx, "docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     "Excel (.xlsx)": (export_xlsx, "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
     "Markdown (.md)": (export_markdown, "md", "text/markdown; charset=utf-8"),
@@ -93,65 +96,78 @@ def quotation_card(record: AnnotationRecord, show_context: bool) -> None:
     author = f'<span>·</span> {escape(record.author)}' if record.author else ""
     title = f'<div class="source-title">{escape(record.document_title)}</div>' if record.document_title else ""
     quotation = (
-        f'<blockquote>{escape(record.quote).replace(chr(10), "<br>")}</blockquote>'
+        f'<div class="eyebrow">Alıntı</div><blockquote>{escape(record.quote).replace(chr(10), "<br>")}</blockquote>'
         if record.quote
         else '<div class="no-quote">Bu notun seçili bir metin aralığı yok.</div>'
     )
+    if record.image_base64:
+        quotation = (
+            '<figure class="image-note"><figcaption>Alıntı · ÇERÇEVE İÇİNDEKİ ALAN</figcaption>'
+            f'<img src="data:image/png;base64,{escape(record.image_base64)}" '
+            f'alt="{escape(record.filename)} · Sayfa {record.page} · Çerçeve içindeki alan"></figure>'
+        )
     note = (
-        f'<div class="note"><div class="eyebrow">NOTUNUZ</div>{escape(record.comment).replace(chr(10), "<br>")}</div>'
+        f'<div class="note"><div class="eyebrow">Sizin notunuz</div>{escape(record.comment).replace(chr(10), "<br>")}</div>'
         if record.comment else ""
     )
     context = ""
-    if show_context and record.context and record.context != record.quote:
-        label = "İLGİLİ PARAGRAF · KONUMDAN TAHMİN" if record.context_inferred else "PARAGRAF BAĞLAMI"
+    if show_context and record.context:
+        label = "Bağlam (konumdan tahmin edildi)" if record.context_inferred else "Bağlam"
         context = f'<details class="context"><summary>{label}</summary><p>{escape(record.context).replace(chr(10), "<br>")}</p></details>'
     st.markdown(
         f'<article class="quote-card" style="--annotation-color:{color}">'
         f'<div class="card-head"><div class="source">{meta}{author}</div>'
         f'<div class="type-badge"><i style="background:{color}"></i>{escape(record.color_name)} · {escape(record.kind)}</div></div>'
-        f'{title}{quotation}{note}{context}</article>',
+        f'{title}{quotation}{context}{note}</article>',
         unsafe_allow_html=True,
     )
+    if record.image_base64:
+        st.download_button(
+            "Görseli indir (PNG)", data=base64.b64decode(record.image_base64),
+            file_name=f"gorsel-not-s{record.page}-{record.id}.png", mime="image/png",
+            key=f"image_download_{record.id}",
+        )
 
 
 st.markdown("""
 <style>
 .block-container {max-width:1370px;padding-top:2.1rem;padding-bottom:3rem}
 header[data-testid="stHeader"] {background:transparent}
-[data-testid="stSidebar"] {border-right:1px solid #E2E5DB}
+[data-testid="stSidebar"] {border-right:1px solid #DED6F8}
 [data-testid="stSidebar"] .block-container {padding-top:2rem}
 .brand {display:flex;align-items:center;gap:12px;font-size:29px;font-weight:700;letter-spacing:-1.2px;margin-bottom:4px}
-.brand-icon {background:#30705C;color:white;width:38px;height:42px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;font-size:23px;letter-spacing:0}
-.brand-note {color:#7A867E;font-size:12px;letter-spacing:1.8px;margin:0 0 2rem 50px}
-.workspace-label {font-size:11px;font-weight:650;letter-spacing:1.6px;color:#788C7E;margin-bottom:10px}
-.hero h1 {font-size:40px;letter-spacing:-1.5px;font-weight:650;margin:0 0 10px;line-height:1.18;color:#223A2D}
-.hero p {color:#717F75;font-size:15px;line-height:1.7;max-width:720px;margin:0 0 1.5rem}
-.privacy {display:inline-flex;align-items:center;gap:8px;border:1px solid #DDE7DA;background:#F2F6EE;padding:7px 11px;font-size:11px;border-radius:20px;color:#4D6B52;margin-top:12px}
-.empty-panel {background:#F3F3EC;border:1px solid #E4E5DB;border-radius:14px;padding:30px 32px;margin:20px 0 18px}
+.brand-icon {background:linear-gradient(145deg,#8B5CF6,#6D28D9);color:white;width:38px;height:42px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;font-size:23px;letter-spacing:0}
+.brand-note {color:#73658F;font-size:12px;letter-spacing:1.8px;margin:0 0 2rem 50px}
+.workspace-label {font-size:11px;font-weight:650;letter-spacing:1.6px;color:#7C3AED;margin-bottom:10px}
+.hero h1 {font-size:40px;letter-spacing:-1.5px;font-weight:650;margin:0 0 10px;line-height:1.18;color:#302052}
+.hero p {color:#6C6280;font-size:15px;line-height:1.7;max-width:720px;margin:0 0 1.5rem}
+.privacy {display:inline-flex;align-items:center;gap:8px;border:1px solid #A9E7E2;background:#E6FAF7;padding:7px 11px;font-size:11px;border-radius:20px;color:#087E78;margin-top:12px}
+.empty-panel {background:linear-gradient(120deg,#EEE5FF 0%,#F4EEFF 55%,#E4FAF6 100%);border:1px solid #D9C9FB;border-radius:14px;padding:30px 32px;margin:20px 0 18px}
 .empty-panel h2 {font-size:22px;letter-spacing:-.6px;margin:0 0 12px}
-.empty-panel p {font-size:14px;color:#728074;line-height:1.75;margin:0;max-width:650px}
+.empty-panel p {font-size:14px;color:#6C5D86;line-height:1.75;margin:0;max-width:650px}
 .color-line {display:flex;gap:7px;margin-bottom:24px}.color-line i {width:32px;height:7px;border-radius:4px}
-.step {border-top:1px solid #DFE4D9;padding-top:17px;margin-top:15px}
-.step span {font-size:12px;color:#859681}.step h3 {font-size:16px;font-weight:600;margin:8px 0}.step p {font-size:13px;color:#748071;line-height:1.7}
-.quote-card {background:white;border:1px solid #E2E7DF;border-left:4px solid var(--annotation-color);border-radius:9px;padding:20px 23px;margin:0 0 14px;box-shadow:0 2px 3px #24382903}
+.step {border-top:1px solid #E3DAF7;padding-top:17px;margin-top:15px}
+.step span {font-size:12px;font-weight:700;color:#C44836;background:#FFE9E3;border-radius:8px;padding:5px 9px}.step h3 {font-size:16px;font-weight:600;margin:8px 0}.step p {font-size:13px;color:#766789;line-height:1.7}
+.quote-card {background:white;border:1px solid #E6DDF7;border-left:4px solid var(--annotation-color);border-radius:9px;padding:20px 23px;margin:0 0 14px;box-shadow:0 2px 3px #6D28D909}
 .card-head {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-.source {font-size:12px;color:#647467;word-break:break-word}.source span {padding:0 7px;color:#A3ADA2}
-.source-title {font-size:11px;color:#909A8C;margin-bottom:10px}
-.type-badge {font-size:10px;color:#6B786A;background:#F5F6F0;padding:4px 8px;border-radius:4px;white-space:nowrap}
+.source {font-size:12px;color:#706184;word-break:break-word}.source span {padding:0 7px;color:#AD9CC5}
+.source-title {font-size:11px;color:#877797;margin-bottom:10px}
+.type-badge {font-size:10px;color:#6D28D9;background:#F3EDFF;padding:4px 8px;border-radius:4px;white-space:nowrap}
 .type-badge i {display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
-.quote-card blockquote {border:0;padding:0;margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.7;color:#293C2C;overflow-wrap:anywhere;white-space:pre-wrap}
-.quote-card .note {margin-top:16px;padding:13px 15px;background:#F6F7F2;border-radius:6px;font-size:13px;color:#64705D;line-height:1.65;overflow-wrap:anywhere}
-.eyebrow {font-size:9px;letter-spacing:1.6px;font-weight:700;color:#859477;margin-bottom:5px}
-.context {margin-top:16px;color:#7D8975;font-size:11px}.context summary {cursor:pointer;font-size:10px;letter-spacing:.7px}.context p {line-height:1.75;font-size:13px;margin-top:12px;overflow-wrap:anywhere}
-.no-quote {color:#87907F;font-size:13px;font-style:italic}
+.quote-card blockquote {border:0;padding:0;margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.7;color:#352947;overflow-wrap:anywhere;white-space:pre-wrap}
+.quote-card .note {margin-top:16px;padding:13px 15px;background:#FFF1EB;border-radius:6px;font-size:13px;color:#805040;line-height:1.65;overflow-wrap:anywhere}
+.eyebrow {font-size:9px;letter-spacing:1.6px;font-weight:700;color:#C24A32;margin-bottom:5px}
+.context {margin-top:16px;color:#78628F;font-size:11px}.context summary {cursor:pointer;font-size:10px;letter-spacing:.7px}.context p {line-height:1.75;font-size:13px;margin-top:12px;overflow-wrap:anywhere}
+.image-note {margin:0}.image-note figcaption {font-size:10px;font-weight:700;letter-spacing:1.2px;color:#7C3AED;margin-bottom:12px}.image-note img {display:block;max-width:100%;max-height:620px;width:auto;height:auto;object-fit:contain;border:1px solid #E6DDF7;border-radius:6px;background:white}
+.no-quote {color:#887899;font-size:13px;font-style:italic}
 .section-title {font-size:22px;letter-spacing:-.7px;font-weight:650;margin-top:8px}
-.section-note {color:#85907F;font-size:12px;margin:5px 0 20px}
-.export-panel {padding:18px 20px;background:#EEF2E8;border:1px solid #DDE5D7;border-radius:9px;margin-bottom:16px}.export-panel h3 {font-size:17px;margin:0 0 7px;font-weight:600}.export-panel p {font-size:12px;color:#788770;line-height:1.7;margin:0}
-[data-testid="stMetric"] {border:1px solid #E4E8DE;background:#FFF;border-radius:9px;padding:14px 17px}
-[data-testid="stMetricLabel"] {color:#7D8B76;font-size:12px}
-[data-testid="stMetricValue"] {font-size:26px;color:#2E4735}
+.section-note {color:#7F6C96;font-size:12px;margin:5px 0 20px}
+.export-panel {padding:18px 20px;background:#E7F8F6;border:1px solid #A9E3DC;border-radius:9px;margin-bottom:16px}.export-panel h3 {color:#087E78;font-size:17px;margin:0 0 7px;font-weight:600}.export-panel p {font-size:12px;color:#3E7B77;line-height:1.7;margin:0}
+[data-testid="stMetric"] {border:1px solid #DED3F4;background:#FFF;border-radius:9px;padding:14px 17px}
+[data-testid="stMetricLabel"] {color:#7E6998;font-size:12px}
+[data-testid="stMetricValue"] {font-size:26px;color:#6D28D9}
 div[data-testid="stFileUploader"] section {border-radius:9px}
-.footer-note {color:#95A08C;font-size:11px;border-top:1px solid #E4E7DC;padding-top:14px;margin-top:25px;line-height:1.8}
+.footer-note {color:#8E7DA0;font-size:11px;border-top:1px solid #E5DCF2;padding-top:14px;margin-top:25px;line-height:1.8}
 @media(max-width:700px) {.block-container {padding:1rem}.hero h1 {font-size:31px}.quote-card {padding:16px}.card-head {gap:6px}.quote-card blockquote {font-size:17px}}
 </style>
 """, unsafe_allow_html=True)
@@ -168,7 +184,7 @@ with st.sidebar:
         uploaded = st.file_uploader(
             "PDF dosyaları yükleyin", type=["pdf"], accept_multiple_files=True,
             key=f"uploads_{st.session_state.uploader_version}",
-            help="Bir seferde en fazla 10 PDF; dosya başına 50 MB.",
+            help=f"Bir seferde en fazla {MAX_FILES} PDF; dosya başına 50 MB.",
         )
         password = st.text_input("PDF parolası (varsa)", type="password", key=f"pdf_password_{st.session_state.uploader_version}", help="Farklı parolalı belgeleri ayrı ayrı yükleyin.")
         submitted = st.form_submit_button("Alıntıları çıkar", type="primary", width="stretch")
@@ -176,7 +192,7 @@ with st.sidebar:
         if not uploaded:
             st.warning("Önce en az bir PDF seçin.")
         elif len(uploaded) > MAX_FILES:
-            st.error("Bir seferde en fazla 10 PDF yükleyebilirsiniz.")
+            st.error(f"Bir seferde en fazla {MAX_FILES} PDF yükleyebilirsiniz.")
         else:
             with st.spinner("PDF açıklamaları okunuyor…"):
                 process_documents([(file.name, file.getvalue()) for file in uploaded], password)
@@ -196,7 +212,7 @@ with st.sidebar:
         selected_colors = st.multiselect("Renkler", sorted({record.color_name for record in all_records}), key="filter_colors", placeholder="Tüm renkler")
         selected_kinds = st.multiselect("İşaret türleri", sorted({record.kind for record in all_records}), key="filter_kinds", placeholder="Tüm işaretler")
         only_comments = st.checkbox("Yalnızca not eklenmiş olanlar", key="filter_notes")
-        show_context = st.checkbox("İlgili paragrafı göster", value=True, key="show_context")
+        show_context = st.checkbox("Bağlamı göster", value=True, key="show_context")
         st.divider()
         if st.button("Oturumu temizle", width="stretch"):
             reset_workspace()
@@ -205,7 +221,7 @@ with st.sidebar:
     else:
         selected_files, selected_colors, selected_kinds, only_comments, show_context = [], [], [], False, True
 
-st.markdown('<div class="workspace-label">ARAŞTIRMA MASANIZ</div><div class="hero"><h1>Okuduklarınız, bir arada.</h1><p>PDF’lerde işaretlediğiniz cümleleri ve kenar notlarınızı toplayın.<br>Renkleriyle düzenleyin, kaynaklarıyla birlikte makalenize taşıyın.</p></div>', unsafe_allow_html=True)
+st.markdown('<div class="workspace-label">ARAŞTIRMA MASANIZ</div><div class="hero"><h1>Okuduklarınız, bir arada.</h1><p>PDF’lerde işaretlediğiniz cümleleri, kenar notlarını ve çerçevelediğiniz görselleri toplayın.<br>Renkleriyle düzenleyin, kaynaklarıyla birlikte makalenize taşıyın.</p></div>', unsafe_allow_html=True)
 
 for error in st.session_state.get("processing_errors", []):
     st.error(error)
@@ -217,12 +233,12 @@ if results:
                 st.warning(f"{filename}: {warning}")
 
 if not results:
-    st.markdown('<div class="empty-panel"><div class="color-line"><i style="background:#F3D973"></i><i style="background:#DE9A8A"></i><i style="background:#9BBB88"></i><i style="background:#91B9CC"></i></div><h2>Bir PDF yükleyerek başlayın</h2><p>Sarı bir vurgu, altı çizili bir cümle ya da bir paragrafın yanına eklediğiniz not… Hepsi tek bir not defterinde, sayfa numarası ve kaynak dosyasıyla yerini bulur.</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="empty-panel"><div class="color-line"><i style="background:#F7BA26"></i><i style="background:#FF6B5C"></i><i style="background:#11B5A4"></i><i style="background:#8B5CF6"></i></div><h2>Bir PDF yükleyerek başlayın</h2><p>Sarı bir vurgu, altı çizili bir cümle ya da bir paragrafın yanına eklediğiniz not… Hepsi tek bir not defterinde, sayfa numarası ve kaynak dosyasıyla yerini bulur.</p></div>', unsafe_allow_html=True)
     columns = st.columns(3, gap="large")
-    for column, number, heading, description in zip(columns, ("01", "02", "03"), ("Belgelerinizi ekleyin", "Alıntılarınızı düzenleyin", "Yazınıza taşıyın"), ("Açıklamalarınızı PDF okuyucunuzda kaydedin; sonra soldan dosyalarınızı yükleyin.", "Renge, belgeye veya işaret türüne göre filtreleyin. Alıntıyı, notu ve paragrafı birlikte inceleyin.", "Seçtiğiniz kayıtları Word, Excel, Markdown, CSV veya JSON olarak indirin.")):
+    for column, number, heading, description in zip(columns, ("01", "02", "03"), ("Belgelerinizi ekleyin", "Alıntılarınızı düzenleyin", "Yazınıza taşıyın"), ("Açıklamalarınızı PDF okuyucunuzda kaydedin; sonra soldan dosyalarınızı yükleyin.", "Renge, belgeye veya işaret türüne göre filtreleyin. Alıntıyı, notu ve paragrafı birlikte inceleyin.", "Seçtiğiniz kayıtları PDF, Word, Excel, Markdown, CSV veya JSON olarak indirin.")):
         with column:
             st.markdown(f'<div class="step"><span>{number}</span><h3>{heading}</h3><p>{description}</p></div>', unsafe_allow_html=True)
-    st.markdown('<div class="footer-note">Vurgular, alt çizgiler, dalgalı çizgiler, üstü çizili metinler ve PDF notları desteklenir. Taranmış sayfalar için OCR gerekir; görüntüye dönüştürülmüş işaretler PDF açıklaması olarak okunamaz.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="footer-note">Vurgular, alt çizgiler, dalgalı çizgiler, üstü çizili metinler, PDF notları ve Zotero alan çerçeveleri desteklenir. Çerçeve içindeki alan görüntü olarak alınır; metin çıkarmak için taranmış sayfalarda OCR gerekir.</div>', unsafe_allow_html=True)
     st.stop()
 
 metrics = st.columns(4)
@@ -264,19 +280,27 @@ with left:
             quotation_card(record, show_context)
 
 with right:
-    st.markdown('<div class="export-panel"><h3>Makalenize taşıyın</h3><p>Geçerli filtrelere uyan tüm kayıtlar; alıntı, not, paragraf bağlamı, renk, kaynak ve sayfa bilgisiyle dışa aktarılır.</p></div>', unsafe_allow_html=True)
+    st.markdown('<div class="export-panel"><h3>Makalenize taşıyın</h3><p>Alıntı, görsel ve sizin notunuz kaynak ve sayfa bilgisiyle indirilir. Bağlamı ekleyip eklememeyi seçebilirsiniz.</p></div>', unsafe_allow_html=True)
+    include_context = st.checkbox("Bağlamı indirmeye dahil et", value=True, key="export_context", help="Kapalıyken yalnızca işaretlediğiniz metinler, görseller ve notlarınız indirilir. Kaynak ve sayfa bilgileri korunur.")
     chosen_format = st.selectbox("Dosya biçimi", list(EXPORT_FORMATS), key="export_format")
     export_function, extension, mime = EXPORT_FORMATS[chosen_format]
+    if any(record.image_base64 for record in filtered):
+        if extension == "csv":
+            st.caption("CSV yalnızca metin ve not bilgilerini içerir. Görseller için PDF, Word veya Excel seçin.")
+        elif extension == "md":
+            st.caption("Görseller dosyaya gömülür. Bazı Markdown görüntüleyicileri gömülü görselleri desteklemeyebilir; bu durumda Word seçin.")
+        elif extension == "xlsx":
+            st.caption("Çerçeve görüntüleri Excel'de Görsel notlar sayfasına eklenir.")
     if filtered:
         signature = hashlib.sha256("\0".join(record.id for record in filtered).encode()).hexdigest()
-        cache_key = (signature, extension)
+        cache_key = (signature, extension, include_context)
         export_cache = st.session_state.export_cache
         if cache_key not in export_cache:
             # Bound per-session memory while keeping reruns fast.
             if len(export_cache) >= 5:
                 export_cache.clear()
             try:
-                export_cache[cache_key] = export_function(filtered)
+                export_cache[cache_key] = export_function(filtered, include_context=include_context)
             except Exception:
                 st.error("Dışa aktarma dosyası oluşturulamadı. Başka bir biçim seçip deneyin.")
         if cache_key in export_cache:
@@ -312,4 +336,4 @@ with right:
         st.write("Taranmış belgelerde OCR metin katmanı gerekir. Resme dönüştürülmüş veya PDF’ye kaydedilmemiş işaretler okunamaz. OCR işlemi bu sürüme dahil değildir.")
     st.download_button("Örnek açıklamalı PDF’yi indir", data=demo_pdf_bytes(), file_name="ornek-notlar.pdf", mime="application/pdf", width="stretch")
 
-st.markdown('<div class="footer-note">Alıntı · PDF not defteri &nbsp; / &nbsp; Seçili metin kaynak alıntısıdır; not alanı PDF’ye eklenen yorumdur. İlgili paragraf konuma dayalı bir eşleştirmedir.</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer-note">Alıntı · PDF not defteri &nbsp; / &nbsp; Alıntı işaretlediğiniz içeriktir; Sizin notunuz PDF’ye eklediğiniz yorumdur. Bağlam konuma dayalı bir eşleştirmedir.</div>', unsafe_allow_html=True)
